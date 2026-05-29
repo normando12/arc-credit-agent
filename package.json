@@ -1,0 +1,31 @@
+{
+  "name": "arc-credit-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Autonomous credit scoring agent for Arc Network Testnet with ERC-8004 identity",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run build -w backend && npm run build -w frontend",
+    "test": "npm run test -w backend",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run migrate -w backend",
+    "deploy:testnet": "tsx scripts/deploy-testnet.ts",
+    "check:deploy": "tsx scripts/check-deploy.ts",
+    "setup:db": "tsx scripts/setup-postgres.ts",
+    "sync:agent": "tsx scripts/sync-agent-db.ts",
+    "start:prod": "npm run start -w backend",
+    "lint": "npm run lint -w backend && npm run lint -w frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "tsx": "^4.22.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
