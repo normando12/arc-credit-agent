@@ -13,8 +13,8 @@ export async function GET() {
     agentOwnerAddress: agent?.address ?? null,
     validationRegistry: config.contracts.validationRegistry,
     description:
-      "O validador é uma wallet separada do dono do agente (regra ERC-8004). " +
-      "Somente esta wallet pode chamar validationResponse() para aprovar ou rejeitar scores.",
+      "The validator is a separate wallet from the agent owner (ERC-8004 rule). " +
+      "Only this wallet can call validationResponse() to approve or reject scores.",
     configured: Boolean(validator),
   });
 }

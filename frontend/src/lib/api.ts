@@ -81,7 +81,7 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
     });
   } catch {
     throw new Error(
-      `API indisponível. Verifique DATABASE_URL e as chaves do agente nas variáveis da Vercel.`
+      "API unavailable. Check DATABASE_URL and agent keys in Vercel environment variables."
     );
   }
 
@@ -89,7 +89,7 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   try {
     data = await res.json();
   } catch {
-    throw new Error(`Resposta inválida da API (HTTP ${res.status}).`);
+    throw new Error(`Invalid API response (HTTP ${res.status}).`);
   }
 
   if (!res.ok) {

@@ -33,13 +33,13 @@ export function arcscanAddressUrl(address: string): string {
 export function validationStatusLabel(status: string): string {
   switch (status) {
     case "approved":
-      return "Aprovado";
+      return "Approved";
     case "rejected":
-      return "Rejeitado";
+      return "Rejected";
     case "expired":
-      return "Expirado";
+      return "Expired";
     default:
-      return "Pendente";
+      return "Pending";
   }
 }
 
