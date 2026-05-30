@@ -2,6 +2,10 @@ import type { ValidationRecord, ValidatorInfo } from "./validation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
+export function getApiUrl(): string {
+  return API_URL;
+}
+
 export interface CreditScore {
   wallet: string;
   credit_score: number;
@@ -64,18 +68,32 @@ export interface ReputationMetrics {
 }
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-  });
-  const data = await res.json();
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+    });
+  } catch {
+    throw new Error(
+      `API indisponível em ${API_URL}. Configure NEXT_PUBLIC_API_URL na Vercel e suba o backend (Railway/Render).`
+    );
+  }
+
+  let data: { error?: string; data?: T };
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(`Resposta inválida da API (HTTP ${res.status}).`);
+  }
+
   if (!res.ok) {
     throw new Error(data.error ?? "API request failed");
   }
-  return data.data ?? data;
+  return (data.data ?? data) as T;
 }
 
 export const api = {

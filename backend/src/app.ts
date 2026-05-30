@@ -10,7 +10,22 @@ export function createApp() {
   const app = express();
 
   app.use(helmet());
-  app.use(cors({ origin: config.corsOrigin }));
+  app.use(
+    cors({
+      origin(origin, callback) {
+        const allowed = config.corsOrigins;
+        if (!origin || allowed.includes("*") || allowed.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+        if (origin.endsWith(".vercel.app")) {
+          callback(null, true);
+          return;
+        }
+        callback(new Error(`CORS blocked for origin: ${origin}`));
+      },
+    })
+  );
   app.use(express.json({ limit: "1mb" }));
   app.use(apiRateLimiter);
 

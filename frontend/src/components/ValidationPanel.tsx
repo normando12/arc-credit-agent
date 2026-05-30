@@ -13,6 +13,7 @@ import {
 interface Props {
   validation: ValidationRecord | null;
   validatorInfo: ValidatorInfo | null;
+  apiOffline?: boolean;
   onRefresh?: () => void;
   refreshing?: boolean;
 }
@@ -20,6 +21,7 @@ interface Props {
 export function ValidationPanel({
   validation,
   validatorInfo,
+  apiOffline,
   onRefresh,
   refreshing,
 }: Props) {
@@ -57,6 +59,11 @@ export function ValidationPanel({
               href={arcscanAddressUrl(validatorInfo.validationRegistry)}
             />
           </dl>
+        ) : apiOffline ? (
+          <p className="text-xs text-amber-400">
+            API offline — o frontend na Vercel precisa de um backend público e de
+            NEXT_PUBLIC_API_URL configurada.
+          </p>
         ) : (
           <p className="text-xs text-amber-400">
             VALIDATOR_PRIVATE_KEY não configurada no servidor.

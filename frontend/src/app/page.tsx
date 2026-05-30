@@ -7,6 +7,7 @@ import { AnalysisPanel } from "@/components/AnalysisPanel";
 import { ValidationPanel } from "@/components/ValidationPanel";
 import {
   api,
+  getApiUrl,
   type CreditScore,
   type WalletAnalysis,
   type AgentInfo,
@@ -153,6 +154,12 @@ export default function Dashboard() {
             </button>
           </div>
           {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
+          {health === "offline" && (
+            <p className="text-amber-400 text-sm mt-2">
+              API offline ({getApiUrl()}). Suba o backend e configure{" "}
+              <code className="text-amber-200">NEXT_PUBLIC_API_URL</code> na Vercel.
+            </p>
+          )}
         </form>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -184,6 +191,7 @@ export default function Dashboard() {
             <ValidationPanel
               validation={validation}
               validatorInfo={validatorInfo}
+              apiOffline={health === "offline"}
               onRefresh={validation ? refreshValidationStatus : undefined}
               refreshing={refreshingValidation}
             />

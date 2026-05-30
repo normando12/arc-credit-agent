@@ -30,6 +30,10 @@ export const config = {
   port: parseInt(optionalEnv("PORT", "3001"), 10),
   apiBaseUrl: optionalEnv("API_BASE_URL", "http://localhost:3001"),
   corsOrigin: optionalEnv("CORS_ORIGIN", "http://localhost:3000"),
+  corsOrigins: optionalEnv("CORS_ORIGIN", "http://localhost:3000")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
 
   arc: {
     rpcUrl: optionalEnv("ARC_RPC_URL", "https://rpc.testnet.arc.network"),
