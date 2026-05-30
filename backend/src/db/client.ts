@@ -11,9 +11,11 @@ export const pool = new Pool({
   max: isServerless ? 1 : 20,
   idleTimeoutMillis: isServerless ? 10000 : 30000,
   connectionTimeoutMillis: 5000,
-  ssl: config.database.url.includes("neon.tech")
-    ? { rejectUnauthorized: false }
-    : undefined,
+  ssl:
+    config.database.url.includes("neon.tech") ||
+    config.database.url.includes("neon.database")
+      ? { rejectUnauthorized: false }
+      : undefined,
 });
 
 pool.on("error", (err) => {

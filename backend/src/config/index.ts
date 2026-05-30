@@ -28,6 +28,20 @@ function optionalEnv(key: string, fallback: string): string {
   return process.env[key] ?? fallback;
 }
 
+function resolveDatabaseUrl(): string {
+  const candidates = [
+    process.env.DATABASE_URL,
+    process.env.DATABASE_POSTGRES_URL,
+    process.env.DATABASE_POSTGRES_PRISMA_URL,
+    process.env.POSTGRES_URL,
+    process.env.DATABASE_URL_UNPOOLED,
+  ];
+  for (const value of candidates) {
+    if (value?.trim()) return value.trim();
+  }
+  return "postgresql://arc_agent:arc_agent_dev@localhost:5432/arc_credit_agent";
+}
+
 export const config = {
   port: parseInt(optionalEnv("PORT", "3001"), 10),
   apiBaseUrl: optionalEnv(
@@ -78,10 +92,7 @@ export const config = {
   },
 
   database: {
-    url: optionalEnv(
-      "DATABASE_URL",
-      "postgresql://arc_agent:arc_agent_dev@localhost:5432/arc_credit_agent"
-    ),
+    url: resolveDatabaseUrl(),
   },
 
   ipfs: {
