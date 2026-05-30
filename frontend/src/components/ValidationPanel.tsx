@@ -61,8 +61,8 @@ export function ValidationPanel({
           </dl>
         ) : apiOffline ? (
           <p className="text-xs text-amber-400">
-            API offline — o frontend na Vercel precisa de um backend público e de
-            NEXT_PUBLIC_API_URL configurada.
+            API offline — configure DATABASE_URL e as chaves do agente nas variáveis de ambiente
+            da Vercel.
           </p>
         ) : (
           <p className="text-xs text-amber-400">

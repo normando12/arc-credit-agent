@@ -4,11 +4,16 @@ import { logger } from "../utils/logger.js";
 
 const { Pool } = pg;
 
+const isServerless = Boolean(process.env.VERCEL);
+
 export const pool = new Pool({
   connectionString: config.database.url,
-  max: 20,
-  idleTimeoutMillis: 30000,
+  max: isServerless ? 1 : 20,
+  idleTimeoutMillis: isServerless ? 10000 : 30000,
   connectionTimeoutMillis: 5000,
+  ssl: config.database.url.includes("neon.tech")
+    ? { rejectUnauthorized: false }
+    : undefined,
 });
 
 pool.on("error", (err) => {

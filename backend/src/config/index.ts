@@ -9,9 +9,11 @@ const rootEnv = path.resolve(__dirname, "../../../.env");
 // Fallback: backend/.env
 const backendEnv = path.resolve(__dirname, "../../.env");
 
-dotenv.config({ path: rootEnv });
-if (!process.env.AGENT_PRIVATE_KEY) {
-  dotenv.config({ path: backendEnv });
+if (!process.env.VERCEL) {
+  dotenv.config({ path: rootEnv });
+  if (!process.env.AGENT_PRIVATE_KEY) {
+    dotenv.config({ path: backendEnv });
+  }
 }
 
 function requireEnv(key: string, fallback?: string): string {
@@ -28,7 +30,12 @@ function optionalEnv(key: string, fallback: string): string {
 
 export const config = {
   port: parseInt(optionalEnv("PORT", "3001"), 10),
-  apiBaseUrl: optionalEnv("API_BASE_URL", "http://localhost:3001"),
+  apiBaseUrl: optionalEnv(
+    "API_BASE_URL",
+    process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:3001"
+  ),
   corsOrigin: optionalEnv("CORS_ORIGIN", "http://localhost:3000"),
   corsOrigins: optionalEnv("CORS_ORIGIN", "http://localhost:3000")
     .split(",")

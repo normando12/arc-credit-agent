@@ -1,9 +1,11 @@
 import type { ValidationRecord, ValidatorInfo } from "./validation";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export function getApiUrl(): string {
-  return API_URL;
+  if (API_URL) return API_URL;
+  if (typeof window !== "undefined") return window.location.origin;
+  return "";
 }
 
 export interface CreditScore {
@@ -79,7 +81,7 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
     });
   } catch {
     throw new Error(
-      `API indisponível em ${API_URL}. Configure NEXT_PUBLIC_API_URL na Vercel e suba o backend (Railway/Render).`
+      `API indisponível. Verifique DATABASE_URL e as chaves do agente nas variáveis da Vercel.`
     );
   }
 

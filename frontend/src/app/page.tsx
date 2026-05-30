@@ -7,7 +7,6 @@ import { AnalysisPanel } from "@/components/AnalysisPanel";
 import { ValidationPanel } from "@/components/ValidationPanel";
 import {
   api,
-  getApiUrl,
   type CreditScore,
   type WalletAnalysis,
   type AgentInfo,
@@ -156,8 +155,8 @@ export default function Dashboard() {
           {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
           {health === "offline" && (
             <p className="text-amber-400 text-sm mt-2">
-              API offline ({getApiUrl()}). Suba o backend e configure{" "}
-              <code className="text-amber-200">NEXT_PUBLIC_API_URL</code> na Vercel.
+              API offline. Configure DATABASE_URL, AGENT_PRIVATE_KEY e VALIDATOR_PRIVATE_KEY na
+              Vercel (Storage → Postgres) e faça redeploy.
             </p>
           )}
         </form>

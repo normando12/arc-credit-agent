@@ -2,10 +2,7 @@ import { config } from "../config/index.js";
 import { logger } from "../utils/logger.js";
 import type { AgentMetadata } from "../types/index.js";
 
-const LOCAL_METADATA_DIR = new URL("../../data/metadata/", import.meta.url);
-
-export class IpfsService {
-  async uploadJson(data: unknown, filename: string): Promise<string> {
+export class IpfsService {  async uploadJson(data: unknown, filename: string): Promise<string> {
     if (config.ipfs.pinataJwt) {
       return this.uploadToPinata(data, filename);
     }
@@ -41,21 +38,25 @@ export class IpfsService {
   }
 
   private async storeLocally(data: unknown, filename: string): Promise<string> {
+    const base64 = Buffer.from(JSON.stringify(data)).toString("base64");
+
+    if (process.env.VERCEL) {
+      logger.info("Stored metadata as data URI (Vercel serverless)", { filename });
+      return `data:application/json;base64,${base64}`;
+    }
+
     const fs = await import("fs/promises");
     const path = await import("path");
-    const { fileURLToPath } = await import("url");
 
-    const dir = path.dirname(fileURLToPath(LOCAL_METADATA_DIR));
+    const dir = path.join(process.cwd(), "backend", "data", "metadata");
     await fs.mkdir(dir, { recursive: true });
 
     const filePath = path.join(dir, filename);
     await fs.writeFile(filePath, JSON.stringify(data, null, 2));
 
-    const base64 = Buffer.from(JSON.stringify(data)).toString("base64");
     logger.info("Stored metadata locally (no Pinata JWT configured)", { filePath });
     return `data:application/json;base64,${base64}`;
   }
-
   resolveUri(uri: string): string {
     if (uri.startsWith("ipfs://")) {
       return `${config.ipfs.gateway}${uri.slice(7)}`;
