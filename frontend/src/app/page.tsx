@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAccount, useSignMessage, useSwitchChain } from "wagmi";
+import { useAccount, useSwitchChain, useWriteContract } from "wagmi";
+import { waitForTransactionReceipt } from "@wagmi/core";
 import { ScoreGauge } from "@/components/ScoreGauge";
 import { AgentIdentityCard } from "@/components/AgentIdentityCard";
 import { AnalysisPanel } from "@/components/AnalysisPanel";
@@ -9,19 +10,29 @@ import { ValidationPanel } from "@/components/ValidationPanel";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import {
   api,
+  truncateAddress,
   type CreditScore,
   type WalletAnalysis,
   type AgentInfo,
   type ReputationMetrics,
 } from "@/lib/api";
 import type { ValidationRecord, ValidatorInfo } from "@/lib/validation";
-import { ARC_CHAIN_ID, buildAnalysisConsentMessage } from "@/lib/arc-chain";
+import {
+  ARC_CHAIN_ID,
+  VALIDATION_REGISTRY_ABI,
+} from "@/lib/arc-chain";
+import { wagmiConfig } from "@/lib/wagmi";
+
+function addressesMatch(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
 
 export default function Dashboard() {
   const { address, isConnected, chainId } = useAccount();
-  const { signMessageAsync } = useSignMessage();
   const { switchChain } = useSwitchChain();
+  const { writeContractAsync } = useWriteContract();
 
+  const [walletInput, setWalletInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(false);
   const [refreshingValidation, setRefreshingValidation] = useState(false);
@@ -35,7 +46,27 @@ export default function Dashboard() {
   const [health, setHealth] = useState<string>("checking");
 
   const onArcTestnet = chainId === ARC_CHAIN_ID;
-  const wallet = address ?? "";
+  const analyzedWallet = score?.wallet ?? walletInput;
+  const canRequestValidation =
+    isConnected &&
+    !!address &&
+    !!analyzedWallet &&
+    addressesMatch(address, analyzedWallet) &&
+    onArcTestnet;
+
+  const validationHint = (() => {
+    if (!score?.analysisId || validation) return null;
+    if (!isConnected) {
+      return "Connect the analyzed wallet to request on-chain validation on Arc Testnet.";
+    }
+    if (!address || !addressesMatch(address, analyzedWallet)) {
+      return `Connected wallet must match ${truncateAddress(analyzedWallet)}.`;
+    }
+    if (!onArcTestnet) {
+      return "Switch to Arc Testnet to sign the validation transaction.";
+    }
+    return null;
+  })();
 
   const loadAgentData = useCallback(async () => {
     try {
@@ -77,68 +108,93 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [validation?.requestHash, validation?.status, refreshValidationStatus]);
 
-  useEffect(() => {
-    setScore(null);
-    setAnalysis(null);
-    setValidation(null);
-    setError(null);
-  }, [address]);
-
   async function handleScore(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
-    if (!isConnected || !address) {
-      setError("Connect your wallet to analyze your on-chain credit profile.");
+    if (!/^0x[a-fA-F0-9]{40}$/.test(walletInput)) {
+      setError("Enter a valid Ethereum address");
       return;
-    }
-
-    if (!onArcTestnet) {
-      try {
-        await switchChain({ chainId: ARC_CHAIN_ID });
-      } catch {
-        setError("Switch to Arc Testnet in your wallet before continuing.");
-        return;
-      }
     }
 
     setLoading(true);
     setValidation(null);
 
     try {
-      await signMessageAsync({
-        message: buildAnalysisConsentMessage(address),
-      });
-
-      const scoreData = await api.score(address);
+      const scoreData = await api.score(walletInput);
       setScore(scoreData);
       setAnalysis(scoreData.analysis ?? null);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Analysis failed";
-      if (msg.toLowerCase().includes("user rejected") || msg.toLowerCase().includes("denied")) {
-        setError("Signature required to authorize the credit analysis.");
-      } else {
-        setError(msg);
-      }
+      setError(err instanceof Error ? err.message : "Analysis failed");
     } finally {
       setLoading(false);
     }
   }
 
+  async function ensureArcTestnet(): Promise<boolean> {
+    if (onArcTestnet) return true;
+    try {
+      await switchChain({ chainId: ARC_CHAIN_ID });
+      return true;
+    } catch {
+      setError("Switch to Arc Testnet to sign the validation transaction.");
+      return false;
+    }
+  }
+
   async function handleValidation() {
-    if (!score?.analysisId || !wallet) return;
+    if (!score?.analysisId || !analyzedWallet) return;
+
+    if (!isConnected || !address) {
+      setError("Connect the analyzed wallet to request on-chain validation.");
+      return;
+    }
+
+    if (!addressesMatch(address, analyzedWallet)) {
+      setError(`Connect wallet ${truncateAddress(analyzedWallet)} to submit the on-chain request.`);
+      return;
+    }
+
+    if (!(await ensureArcTestnet())) return;
+
     setValidating(true);
     setError(null);
+
     try {
-      const result = await api.requestValidation(wallet, score.analysisId);
+      const prepared = await api.prepareValidation(analyzedWallet, score.analysisId);
+
+      const txHash = await writeContractAsync({
+        address: prepared.validationRegistry as `0x${string}`,
+        abi: VALIDATION_REGISTRY_ABI,
+        functionName: "validationRequest",
+        args: [
+          prepared.validatorAddress as `0x${string}`,
+          BigInt(prepared.agentId),
+          prepared.requestUri,
+          prepared.requestHash as `0x${string}`,
+        ],
+        chainId: ARC_CHAIN_ID,
+      });
+
+      await waitForTransactionReceipt(wagmiConfig, { hash: txHash });
+
+      const result = await api.confirmValidation({
+        wallet: analyzedWallet,
+        scoreId: score.analysisId,
+        requestHash: prepared.requestHash,
+        txHash,
+        validatorAddress: prepared.validatorAddress,
+        requestUri: prepared.requestUri,
+      });
+
       setValidation(result);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to request validation";
-      setError(
-        msg.includes("AGENT_PRIVATE_KEY")
-          ? "Server missing agent key. Configure AGENT_PRIVATE_KEY in Vercel and redeploy."
-          : msg
-      );
+      if (msg.toLowerCase().includes("user rejected") || msg.toLowerCase().includes("denied")) {
+        setError("Transaction signature required to submit on-chain validation.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setValidating(false);
     }
@@ -171,55 +227,41 @@ export default function Dashboard() {
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
               <label htmlFor="wallet" className="block text-sm font-medium text-white/70 mb-1">
-                Your Wallet
+                Wallet Address
               </label>
               <p className="text-xs text-white/40">
-                Connect MetaMask, switch to Arc Testnet, and sign to authorize analysis.
+                Enter any address to analyze. Wallet connection is optional and only required for
+                on-chain validation.
               </p>
             </div>
-            <a
-              href="https://faucet.circle.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-arc-400 hover:text-arc-300 whitespace-nowrap"
-            >
-              Get testnet USDC →
-            </a>
+            {isConnected && address && (
+              <button
+                type="button"
+                onClick={() => setWalletInput(address)}
+                className="text-xs text-arc-400 hover:text-arc-300 whitespace-nowrap"
+              >
+                Use connected wallet
+              </button>
+            )}
           </div>
 
           <div className="flex gap-3">
             <input
               id="wallet"
               type="text"
-              readOnly
-              value={isConnected ? wallet : ""}
-              placeholder={isConnected ? wallet : "Connect wallet to continue"}
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none placeholder:text-white/30 cursor-not-allowed"
+              value={walletInput}
+              onChange={(e) => setWalletInput(e.target.value)}
+              placeholder="0x..."
+              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-arc-500/50 placeholder:text-white/30"
             />
             <button
               type="submit"
-              disabled={loading || !isConnected}
+              disabled={loading}
               className="px-6 py-3 rounded-xl bg-arc-600 hover:bg-arc-500 disabled:opacity-50 transition font-medium text-sm whitespace-nowrap"
             >
-              {loading ? "Signing & analyzing..." : "Sign & Analyze"}
+              {loading ? "Analyzing..." : "Analyze & Score"}
             </button>
           </div>
-
-          {!isConnected && (
-            <p className="text-amber-400 text-sm mt-3">
-              Step 1: click <strong className="font-medium">Connect Wallet</strong> in the header.
-            </p>
-          )}
-          {isConnected && !onArcTestnet && (
-            <p className="text-amber-400 text-sm mt-3">
-              Step 2: switch your wallet to <strong className="font-medium">Arc Testnet</strong> (Chain ID 5042002).
-            </p>
-          )}
-          {isConnected && onArcTestnet && (
-            <p className="text-white/40 text-sm mt-3">
-              Step 3: click <strong className="font-medium text-white/60">Sign & Analyze</strong> — your wallet will ask you to sign a message on Arc Testnet.
-            </p>
-          )}
 
           {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
           {health === "offline" && (
@@ -242,7 +284,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="glass rounded-2xl p-6 h-72 flex items-center justify-center text-white/40 text-sm text-center px-4">
-                Connect your wallet and sign to see your credit score
+                Enter a wallet address to see the credit score
               </div>
             )}
             <AgentIdentityCard agent={agent} reputation={reputation} />
@@ -255,6 +297,8 @@ export default function Dashboard() {
               onRequestValidation={handleValidation}
               validating={validating}
               validationRequested={Boolean(validation)}
+              canRequestValidation={canRequestValidation}
+              validationHint={validationHint}
             />
             <ValidationPanel
               validation={validation}

@@ -12,12 +12,26 @@ import { keccak256Json } from "../utils/helpers.js";
 import { logger } from "../utils/logger.js";
 import type { ValidationRecord } from "../types/index.js";
 
+interface ValidationRequestPayload {
+  wallet: string;
+  scoreId: string;
+  creditScore: number;
+  riskLevel: string;
+  requestedAt: string;
+}
+
 export class ValidationService {
-  async requestValidation(params: {
+  private async buildValidationRequest(params: {
     wallet: string;
     scoreId: string;
     validatorAddress?: string;
-  }): Promise<ValidationRecord> {
+  }): Promise<{
+    requestHash: string;
+    requestUri: string;
+    validatorAddress: string;
+    agentId: number;
+    validationRegistry: string;
+  }> {
     const agentWallet = getAgentWallet();
     if (!agentWallet) {
       throw new Error("AGENT_PRIVATE_KEY is required for validation requests");
@@ -34,12 +48,16 @@ export class ValidationService {
       throw new Error("Credit score not found");
     }
 
+    if (score.wallet.toLowerCase() !== params.wallet.toLowerCase()) {
+      throw new Error("Score does not belong to the provided wallet");
+    }
+
     const validatorAddress =
       params.validatorAddress ??
       getValidatorWallet()?.address ??
       agentWallet.address;
 
-    const requestPayload = {
+    const requestPayload: ValidationRequestPayload = {
       wallet: params.wallet,
       scoreId: params.scoreId,
       creditScore: score.credit_score,
@@ -53,34 +71,115 @@ export class ValidationService {
     );
     const requestHash = keccak256Json(requestPayload);
 
-    const registry = getValidationRegistry(agentWallet);
-    const tx = await registry.validationRequest(
+    return {
+      requestHash,
+      requestUri,
       validatorAddress,
       agentId,
-      requestUri,
-      requestHash
+      validationRegistry: config.contracts.validationRegistry,
+    };
+  }
+
+  async prepareValidationRequest(params: {
+    wallet: string;
+    scoreId: string;
+    validatorAddress?: string;
+  }) {
+    return this.buildValidationRequest(params);
+  }
+
+  async confirmValidationRequest(params: {
+    wallet: string;
+    scoreId: string;
+    requestHash: string;
+    txHash: string;
+    validatorAddress: string;
+    requestUri: string;
+  }): Promise<ValidationRecord> {
+    const existing = await repo.getValidationByHash(params.requestHash);
+    if (existing) {
+      throw new Error("Validation request already recorded");
+    }
+
+    const score = await repo.getScoreById(params.scoreId);
+    if (!score) {
+      throw new Error("Credit score not found");
+    }
+
+    if (score.wallet.toLowerCase() !== params.wallet.toLowerCase()) {
+      throw new Error("Score does not belong to the provided wallet");
+    }
+
+    const id = uuidv4();
+    await repo.saveValidationRequest({
+      id,
+      requestHash: params.requestHash,
+      scoreId: params.scoreId,
+      wallet: params.wallet,
+      validatorAddress: params.validatorAddress,
+      requestUri: params.requestUri,
+      txHash: params.txHash,
+    });
+
+    logger.info("Validation confirmed from client tx", {
+      requestHash: params.requestHash,
+      wallet: params.wallet,
+      txHash: params.txHash,
+    });
+
+    return {
+      id,
+      requestHash: params.requestHash,
+      wallet: params.wallet,
+      scoreId: params.scoreId,
+      validatorAddress: params.validatorAddress,
+      status: "pending",
+      txHash: params.txHash,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  async requestValidation(params: {
+    wallet: string;
+    scoreId: string;
+    validatorAddress?: string;
+  }): Promise<ValidationRecord> {
+    const agentWallet = getAgentWallet();
+    if (!agentWallet) {
+      throw new Error("AGENT_PRIVATE_KEY is required for validation requests");
+    }
+
+    const prepared = await this.buildValidationRequest(params);
+
+    const registry = getValidationRegistry(agentWallet);
+    const tx = await registry.validationRequest(
+      prepared.validatorAddress,
+      prepared.agentId,
+      prepared.requestUri,
+      prepared.requestHash
     );
     const receipt = await tx.wait();
 
     const id = uuidv4();
     await repo.saveValidationRequest({
       id,
-      requestHash,
+      requestHash: prepared.requestHash,
       scoreId: params.scoreId,
       wallet: params.wallet,
-      validatorAddress,
-      requestUri,
+      validatorAddress: prepared.validatorAddress,
+      requestUri: prepared.requestUri,
       txHash: receipt.hash,
     });
 
-    logger.info("Validation requested", { requestHash, wallet: params.wallet });
+    logger.info("Validation requested", { requestHash: prepared.requestHash, wallet: params.wallet });
 
     return {
       id,
-      requestHash,
+      requestHash: prepared.requestHash,
       wallet: params.wallet,
       scoreId: params.scoreId,
-      validatorAddress,
+      validatorAddress: prepared.validatorAddress,
       status: "pending",
       txHash: receipt.hash,
       createdAt: new Date().toISOString(),

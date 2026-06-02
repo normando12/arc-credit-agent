@@ -11,17 +11,13 @@ import { truncateAddress } from "@/lib/api";
 
 
 interface Props {
-
   analysis: WalletAnalysis | null;
-
   score: CreditScore | null;
-
   onRequestValidation?: () => void;
-
   validating?: boolean;
-
   validationRequested?: boolean;
-
+  canRequestValidation?: boolean;
+  validationHint?: string | null;
 }
 
 
@@ -38,6 +34,10 @@ export function AnalysisPanel({
 
   validationRequested,
 
+  canRequestValidation = false,
+
+  validationHint,
+
 }: Props) {
 
   if (!analysis && !score) {
@@ -46,7 +46,7 @@ export function AnalysisPanel({
 
       <div className="glass rounded-2xl p-8 text-center text-white/50">
 
-        Connect your wallet on Arc Testnet and sign to analyze your on-chain creditworthiness
+        Enter a wallet address to analyze on-chain creditworthiness
 
       </div>
 
@@ -243,21 +243,18 @@ export function AnalysisPanel({
           </ul>
 
           {score.analysisId && onRequestValidation && !validationRequested && (
-
-            <button
-
-              onClick={onRequestValidation}
-
-              disabled={validating}
-
-              className="mt-6 w-full py-2.5 rounded-xl bg-arc-600 hover:bg-arc-500 disabled:opacity-50 transition font-medium text-sm"
-
-            >
-
-              {validating ? "Requesting Validation..." : "Request On-Chain Validation"}
-
-            </button>
-
+            <>
+              <button
+                onClick={onRequestValidation}
+                disabled={validating || !canRequestValidation}
+                className="mt-6 w-full py-2.5 rounded-xl bg-arc-600 hover:bg-arc-500 disabled:opacity-50 transition font-medium text-sm"
+              >
+                {validating ? "Signing transaction..." : "Request On-Chain Validation"}
+              </button>
+              {validationHint && (
+                <p className="mt-3 text-xs text-amber-400 text-center">{validationHint}</p>
+              )}
+            </>
           )}
 
           {validationRequested && (

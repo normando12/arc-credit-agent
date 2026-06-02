@@ -23,12 +23,21 @@ export const arcTestnet = defineChain({
 
 export const ARC_CHAIN_ID = arcTestnet.id;
 
-export function buildAnalysisConsentMessage(wallet: string): string {
-  const timestamp = new Date().toISOString();
-  return [
-    "ARC Credit Agent — Credit Analysis Request",
-    `Wallet: ${wallet}`,
-    `Network: Arc Testnet (${ARC_CHAIN_ID})`,
-    `Timestamp: ${timestamp}`,
-  ].join("\n");
-}
+export const VALIDATION_REGISTRY_ADDRESS =
+  (process.env.NEXT_PUBLIC_VALIDATION_REGISTRY as `0x${string}` | undefined) ??
+  "0x8004Cb1BF31DAf7788923b405b754f57acEB4272";
+
+export const VALIDATION_REGISTRY_ABI = [
+  {
+    type: "function",
+    name: "validationRequest",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "validatorAddress", type: "address" },
+      { name: "agentId", type: "uint256" },
+      { name: "requestURI", type: "string" },
+      { name: "requestHash", type: "bytes32" },
+    ],
+    outputs: [],
+  },
+] as const;

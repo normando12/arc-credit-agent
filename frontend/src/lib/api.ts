@@ -69,6 +69,23 @@ export interface ReputationMetrics {
   };
 }
 
+export interface ValidationPrepareResult {
+  requestHash: string;
+  requestUri: string;
+  validatorAddress: string;
+  agentId: number;
+  validationRegistry: string;
+}
+
+export interface ConfirmValidationPayload {
+  wallet: string;
+  scoreId: string;
+  requestHash: string;
+  txHash: string;
+  validatorAddress: string;
+  requestUri: string;
+}
+
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   let res: Response;
   try {
@@ -119,6 +136,18 @@ export const api = {
     fetchApi<ValidationRecord>("/api/v1/validate", {
       method: "POST",
       body: JSON.stringify({ wallet, scoreId }),
+    }),
+
+  prepareValidation: (wallet: string, scoreId: string) =>
+    fetchApi<ValidationPrepareResult>("/api/v1/validate/prepare", {
+      method: "POST",
+      body: JSON.stringify({ wallet, scoreId }),
+    }),
+
+  confirmValidation: (payload: ConfirmValidationPayload) =>
+    fetchApi<ValidationRecord>("/api/v1/validate/confirm", {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
 
   getValidationStatus: (requestHash: string) =>

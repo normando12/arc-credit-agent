@@ -26,6 +26,15 @@ export const submitValidationSchema = z.object({
   comment: z.string().max(500).optional(),
 });
 
+export const confirmValidationSchema = z.object({
+  wallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  scoreId: z.string().uuid(),
+  requestHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+  txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+  validatorAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  requestUri: z.string().min(1),
+});
+
 export const feedbackSchema = z.object({
   agentId: z.number().int().positive(),
   value: z.number(),
